@@ -3,22 +3,24 @@ const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 
 const BASE_URL = 'https://www.faselhds.xyz';
+const CATEGORY = 'movies-2025';
 const OUTPUT_FILE = 'playlist.json';
+const MAX_PAGES = 5; // Adjust as needed
 
 async function getDirectStream(moviePageUrl) {
     try {
         const res = await fetch(moviePageUrl);
         const html = await res.text();
 
-        // Try to find direct .m3u8 or .mp4 links
+        // Direct .m3u8 or .mp4 link
         let match = html.match(/https?:\/\/[^"']+\.(m3u8|mp4)/i);
         if (match) return match[0];
 
-        // Fallback: try iframe src
+        // Fallback iframe src
         match = html.match(/<iframe[^>]+src="([^"]+)"/i);
         if (match) return match[1].startsWith('//') ? 'https:' + match[1] : match[1];
 
-        return moviePageUrl; // fallback to movie page URL
+        return moviePageUrl;
     } catch (err) {
         console.error('Error extracting stream:', err);
         return moviePageUrl;
@@ -26,29 +28,34 @@ async function getDirectStream(moviePageUrl) {
 }
 
 async function scrapeMovies() {
-    const url = `${BASE_URL}/category/movies-2025/`;
-    const res = await fetch(url);
-    const html = await res.text();
-    const $ = cheerio.load(html);
-
     const movies = [];
 
-    const movieElements = $('.postDiv').toArray();
+    for (let page = 1; page <= MAX_PAGES; page++) {
+        const url = `${BASE_URL}/category/${CATEGORY}/page/${page}/`;
+        console.log(`🔍 Scraping page ${page}: ${url}`);
 
-    for (const el of movieElements) {
-        const title = $(el).find('.h1').text().trim();
-        const link = $(el).find('a').attr('href');
-        const img = $(el).find('img').attr('data-src') || '';
+        const res = await fetch(url);
+        const html = await res.text();
+        const $ = cheerio.load(html);
 
-        if (title && link) {
-            const streamUrl = await getDirectStream(link);
-            movies.push({
-                name: title,
-                url: streamUrl,
-                logo: img,
-                group: 'Movies 2025'
-            });
-            console.log(`✅ Added: ${title}`);
+        const movieElements = $('.postDiv').toArray();
+        if (movieElements.length === 0) break;
+
+        for (const el of movieElements) {
+            const title = $(el).find('.h1').text().trim();
+            const link = $(el).find('a').attr('href');
+            const img = $(el).find('img').attr('data-src') || '';
+
+            if (title && link) {
+                const streamUrl = await getDirectStream(link);
+                movies.push({
+                    name: title,
+                    url: streamUrl,
+                    logo: img,
+                    group: 'Movies 2025'
+                });
+                console.log(`✅ Added: ${title}`);
+            }
         }
     }
 
