@@ -1,1 +1,46 @@
-touch scraper.js
+// scraper.js
+const fs = require('fs');
+const fetch = require('node-fetch');
+const cheerio = require('cheerio');
+
+// Configuration
+const BASE_URL = 'https://www.faselhds.xyz';
+const OUTPUT_FILE = 'playlist.json';
+
+// Helper to scrape movies
+async function scrapeMovies() {
+    const url = `${BASE_URL}/category/movies-2025/`; // adjust category if needed
+    const res = await fetch(url);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    const movies = [];
+
+    $('.postDiv').each((i, el) => {
+        const title = $(el).find('.h1').text().trim();
+        const link = $(el).find('a').attr('href');
+        const img = $(el).find('img').attr('data-src') || '';
+
+        if (title && link) {
+            movies.push({
+                name: title,
+                url: link,
+                logo: img,
+                group: 'Movies 2025'
+            });
+        }
+    });
+
+    return movies;
+}
+
+// Main
+(async () => {
+    try {
+        const movies = await scrapeMovies();
+        fs.writeFileSync(OUTPUT_FILE, JSON.stringify(movies, null, 2));
+        console.log(`✅ Playlist updated with ${movies.length} movies`);
+    } catch (err) {
+        console.error('❌ Error:', err);
+    }
+})();
